@@ -1,5 +1,5 @@
 # waisser-portfolio
-# Hi, I'm [Andy] 👋
+# Hi, I'm Andy 👋
 I recently graduated with a background in Psychology and Political Science, and I'm passionate about research coordination, child development, and using data to understand behavior. 
 
 This GitHub showcases:
