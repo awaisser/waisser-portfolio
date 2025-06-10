@@ -17,4 +17,4 @@ A full implementation of the Mastermind game using Java Swing for the user inter
 Programs for sorting and manipulating arrays, along with test cases.
 
 ---
-Andy Waisser • [LinkedIn] • [Email]
+Andy Waisser • [waissera@gmail.com]
