@@ -1,10 +1,14 @@
-# Exercise 6: Final Project
+# Exercise 1: Summarizing and Comparing Groups
 
-Capstone-style analysis project combining:
-- Data wrangling
-- Modeling
-- Visualization
+This project explores a real-world dataset using:
+
+- Summary statistics (mean, median, etc.)
+- Group comparisons (e.g., gender, home type)
+- Visualizations with `ggplot2`
 
 **Skills Highlighted:**
-- End-to-end data analysis workflow
-- Communication of findings in a reproducible format
+- Data wrangling with `dplyr`
+- Exploratory data analysis
+- Plotting distributions
+
+These are foundational skills for any lab manager preparing participant data for analysis.
