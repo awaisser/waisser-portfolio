@@ -1,0 +1,128 @@
+---
+title: "Randomizing Treatment Assignment"
+format: html
+editor: visual
+author: "Put Your Name Here"
+date: 2/26/24
+date-format: long
+---
+
+## Q3 from last time
+
+```{r, echo=TRUE}
+# load the packages we will use
+# library(tibble) # for glimpse
+# library(ggplot2) # for ggplot
+# library(plyr) # for ddply
+
+## load the Gaikwad-Nellis data
+# load t1 data frame
+dat1 <- readRDS(file="../GN_Data/data-t1-experiment-df.Rds")
+
+# Q3 from last time: regress the treatment variable on your 3 selected 
+# covariates and age (so total of 4 covariates)
+summary(lm(i_t1 ~ b_age + b_female + b_sc_st + b_income, data=dat1))
+
+```
+
+We want treatment to be unrelated to potential outcomes (which we investigate by looking at the relationship between treatment assignment and factors that might determine the potential outcomes). This means we *don't* want covariates to be predictive of treatment assignment.
+
+We're going to focus on the f-statistic, which summarizes whether the covariates together are predictive of treatment assignment (on the left-hand side of this model), and it's p-value. In this context, we do not want small $p$-values.
+
+```{r, echo=TRUE}
+#f-statistic:
+summary(lm(i_t1 ~ b_age + b_female + b_sc_st + b_income, data=dat1))$fstatistic[1] 
+# save the summary as mod1:
+mod1 <- summary(lm(i_t1 ~ b_age + b_female + b_sc_st + b_income, data=dat1)) 
+# gets the p-value for the f-statistic for mod1:
+pf(mod1$fstatistic[1],mod1$fstatistic[2],mod1$fstatistic[3],lower.tail=FALSE) 
+```
+
+## Simple Randomization
+
+The easiest way to randomize treatment is to use a package specifically written for this task. Be sure to install this package before trying to load it:
+
+```{r, echo=TRUE}
+library(randomizr)
+set.seed(12345) # what are we doing here?
+samplesize <- dim(dat1)[1] # what are we doing here?
+declare1 <- declare_ra(N=samplesize, prob=0.5, simple=TRUE) # defines a scheme with simple randomization
+draw1 <- obtain_permutation_matrix(declare1, maximum_permutations=1)
+head(draw1)
+```
+
+Q1. How many units were assigned to treatment just now? Is this/should this be the same as the number of treated units in the experiment that was actually run? Why or why not?
+
+Q2. If we were to run a regression of this treatment assignment (that we just made up!) on the covariates you looked at for Q3 from last time, what would you expect to see? Why?
+
+Q3. If we were to run a regression of this treatment assignment (that we just made up!) on the actual treatment assignment from the experiment that was actually run, what would you expect to see? Run this regression, report and interpret the estimated effect.
+
+## Complete Randomization
+
+Here is a different way to randomize treatment that fixes the number of units to be treated:
+
+```{r, echo=TRUE}
+num_treated <- sum(dat1$i_t1) # what are we doing here?
+# defines a scheme with complete randomization
+declare2 <- declare_ra(N=samplesize, m=num_treated) 
+set.seed(12345) # what are we doing here?
+draw2 <- obtain_permutation_matrix(declare2, maximum_permutations=1) # what are we doing here?
+```
+
+Q4. How many units were assigned to treatment just now? (Be sure to show your work.)
+
+## Block Randomization
+
+We can adapt the code inside declare_ra to do block randomization:
+
+```{r, echo=TRUE}
+table(dat1$b_primary_edu)
+?declare_ra
+# block randomization by level of b_primary_edu, 
+# probability of treatment assignment in each block is 0.5
+declare3 <- declare_ra(N=samplesize, block_prob=c(0.5,0.5), blocks=dat1$b_primary_edu) 
+set.seed(12345) # what are we doing here?
+draw3 <- obtain_permutation_matrix(declare3, maximum_permutations=1)
+```
+
+Q5. Confirm that this randomization worked as intended by checking that half the units in each block were assigned to treatment.
+
+Q6. Adapt the code to do block randomization by a different pre-treatment of your choice.
+
+## Cluster Randomization
+
+In the Gaikwad-Nellis study, T2 was assigned by cluster randomization.
+
+```{r, echo=TRUE}
+# load the data
+dat2 <- readRDS(file="../GN_Data/data-t2-experiment-df.Rds")
+names(dat2) # which one looks like the treatment indicator? cluster variable name?
+table(dat2$i_in_cluster_trial)
+table(dat2$i_t2_cluster, dat2$i_t2_treat)
+table(dat2$i_t2_cluster, dat2$i_t2_block) # confirm clusters are within blocks
+```
+
+Here's how to do cluster random assignment by the variable i_t2_cluster:
+
+```{r, echo=TRUE}
+id_clusters <- unique(dat2$i_t2_cluster) # what are we doing here?
+length(id_clusters) # what are we doing here?
+round(length(id_clusters)/2) # make sure we get an integer
+# defines a scheme with complete randomization
+declare4 <- declare_ra(N=samplesize,  # total sample size
+                       clusters = dat2$i_t2_cluster, # name of the cluster variable
+                       m=round(length(id_clusters)/2,0)) 
+set.seed(12345) # what are we doing here?
+draw4 <- obtain_permutation_matrix(declare4, maximum_permutations=1) # what are we doing here?
+```
+
+To do block-cluster randomization, we need to use block_and_cluster_ra():
+
+```{r, echo=TRUE}
+set.seed(12345) # what are we doing here?
+z5 <- block_and_cluster_ra(clusters = dat2$i_t2_cluster, # name of the cluster variable
+                       blocks = dat2$i_city, # name of the block variable
+                       m=round(length(id_clusters)/4,0)) # number of clusters in each block assigned to treatment
+```
+
+Q7. Confirm that there are treated and control units in each block. Confirm that all units in a cluster have been assigned the same treatment status.

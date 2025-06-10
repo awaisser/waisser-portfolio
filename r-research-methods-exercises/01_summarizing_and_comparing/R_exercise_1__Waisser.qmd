@@ -1,0 +1,116 @@
+---
+title: "Summarizing Data and Comparing Groups"
+format: html
+editor: visual
+author: "Andy Waisser"
+date: 2/21/24
+date-format: long
+---
+
+Let's take a look at the Gaikwad-Nellis data:
+
+```{r, echo=TRUE}
+# load the packages we will use
+library(tibble) # for glimpse
+library(ggplot2) # for qplot  
+library(plyr) # for ddply
+
+## data
+# load t1 data frame
+dat1 <- readRDS(file="../GN_Data/data-t1-experiment-df.Rds")
+
+# take a look at the dimensions of the first data set
+dim(dat1)
+dim(dat1)[1] # number of rows = number of subjects
+dim(dat1)[2] # number of columns = number of variables
+
+# what variables are in this dataset? what do they look like?
+glimpse(dat1)
+names(dat1)
+
+# let's take a look at some of the variables
+table(dat1$b_female)
+mean(dat1$b_female)
+
+table(dat1$b_prior_home_type)
+
+# let's take a closer look at age
+summary(dat1$b_age)
+```
+
+Let's do a basic histogram using ggplot2
+
+```{r}
+# cheatsheet for ggplot2: 
+# https://rstudio.github.io/cheatsheets/html/data-visualization.html
+# Basic histogram
+ggplot(dat1, aes(x=b_age)) + geom_histogram()
+
+```
+
+Let's add the mean age
+
+```{r}
+
+ggplot(dat1, aes(x=b_age)) + 
+  geom_histogram(bins=50) +
+  geom_vline(aes(xintercept=mean(b_age)),
+            color="blue", linetype="dashed", linewidth=0.5)
+
+
+
+```
+
+In a randomized experiment, the subjects assigned to treatment should be the same on average as the subjects assigned to control.
+
+```{r}
+# confirm everyone is in the experimental sample
+table(dat1$i_experimental_sample)
+table(dat1$i_t1)
+
+# then let's a look at the treatment and control groups
+summary(dat1$b_age[dat1$i_t1==1])
+summary(dat1$b_age[dat1$i_t1==0])
+
+quantile(dat1$b_age[dat1$i_t1==0], c(0.25, 0.75))
+
+mean(dat1$b_age[dat1$i_t1==1]) - mean(dat1$b_age[dat1$i_t1==0])
+
+lm(b_age ~ i_t1, data=dat1)
+summary(lm(b_age ~ i_t1, data=dat1))
+summary(lm(b_age ~ i_t1, data=dat1))$coef[2,]
+round(summary(lm(b_age ~ i_t1, data=dat1))$coef[2,],3)
+```
+
+```{r}
+# Are the distributions, not just averages, similar?
+
+p <- ggplot(dat1, aes(x=b_age, color=as.factor(i_t1))) +
+  geom_histogram(fill="lightblue", bins=50) +
+  theme(legend.position="top")
+  
+
+p
+
+# let's add the means -- to do that, we need to calculate the means and have them in 
+# a data frame
+means <- ddply(dat1, "i_t1", summarise, grp.mean=mean(b_age))
+means
+
+p + geom_vline(data=means, aes(xintercept=grp.mean, color=as.factor(i_t1)),
+             linetype="dashed")
+
+```
+
+It's still a little hard to see, so let's separate these into different panels:
+
+```{r}
+p<-ggplot(dat1, aes(x=b_age))+
+  geom_histogram(color="lightblue", fill="white", bins=50)+
+  facet_grid(as.factor(i_t1) ~ .)
+p
+# Add mean lines
+p + geom_vline(data=means, aes(xintercept=grp.mean, color="red"),
+             linetype="dashed")
+
+```

@@ -1,0 +1,200 @@
+---
+title: "Putting Everything Together - Replicating Freire et al. (2020)"
+format: html
+editor: visual
+author: "Andy Waisser"
+date: 3/25/24
+date-format: long
+---
+
+We are going to put together all the pieces we have learned in the R exercises so far using the replication data from the Brazil study you read for today.
+
+The Brazil study had two phases; we'll focus on the second phase.
+
+**Q1. Describe the theory of bottom-up monitoring behind the intervention.**
+
+The theory postulates that if citizens receive information about local projects that are relevant to them, they should evaluate and pressure public officials for the completion of these. With more pressure from citizens who care about these projects, public officials are incentivized to ensure their completion.
+
+**Q2. Describe the treatment in the second intervention. What is the difference between the first and second interventions?**
+
+The treatment included making the TDP app available in mobile devices, where citizens can monitor projects and contact public servants. Unlike the first intervention, the second one is available for both iOS and Android devices (as opposed to only Android), was randomized at the school level and blocked by state, school construction status, and municipality spending level on projects.
+
+**Q3. Describe the randomization, including the blocking, for the second intervention.**
+
+The units in the randomization were schools, with 3717 treatment units and 659 control units. The experiment used blocked randomization, stratifying by state, school construction status, and municipality spending level on projects.
+
+## Getting into the data and replication code
+
+Let's now load the replication data. The authors provide their replication data in RData format. This format contains multiple R objects (multiple datasets in our case).
+
+```{r, echo=TRUE}
+## load the Brazil data
+load(file="../Freire_Data/tdp.RData")
+
+# inspect the objects that were loaded:
+ls()
+```
+
+Now we need to figure out which objects to work with. The easiest way to do this is to scroll through the replication code, which is provided in an RMarkdown file called appendix.rmd. Let's scroll through this file together.
+
+There is an "Outline" button in RStudio that will make it this file easier to navigate. It looks like we go to line 690 to look at the code for the second intervention. It first asks us to install and load the necessary packages, then it defines custom functions, and then tells us the names of the variables used (starting on line 778).
+
+It looks like the data we want is called impact_evaluation_phase2 (from line 786). It looks like the outcome variables are those listed in line 778. Let's confirm that these variables are in the dataset.
+
+```{r, echo=TRUE}
+dim(impact_evaluation_phase2)
+names(impact_evaluation_phase2)
+## copied from starting on line 778:
+# outcs <- c('percExecBegin', 'percExecEnd',
+#            'deltaPercExec', 'isFinished',
+#            'isCancelled', 'updDate')
+# ctrls <- c('logPop2015', 'ideb_ai_2015','ideb_af_2015',
+#            'log_poorFam2010', 'log_totTransf2016') 
+# fes <- c('state')
+# cls <- c('municipality')
+```
+
+**Q4.** How many units were assigned to treatment? to control? (Show your work in code).
+
+```{r}
+table(impact_evaluation_phase2$treat)
+```
+
+**Q5. In words, describe the outcome variables and how they are coded. (Refer to Table 1 in the article.). The first outcome is a *placebo* outcome, meaning it is an outcome that should not be affected by the treatment.**
+
+Outcome 1: The percentage of a project completed after the intervention.
+
+Outcome 2: The difference between Outcome 1 and placebo, the change in percentage of completion from before intervention to after intervention.
+
+Outcome 3: Amount of reported finished constructions
+
+Outcome 4: Amount of reported cancelled constructions
+
+Outcome 5: Amount of tines that construction companies updated when the construction will be done
+
+**Q6.** Summarize and describe these outcome variables![]() using code from R_exercise_1.
+
+```{r, echo=TRUE}
+# just to get started with the first one:
+summary(impact_evaluation_phase2$percExecBegin)
+
+summary(impact_evaluation_phase2$percExecEnd)
+
+summary(impact_evaluation_phase2$deltaPercExec)
+
+summary(impact_evaluation_phase2$isFinished)
+
+summary(impact_evaluation_phase2$isCancelled)
+
+summary(impact_evaluation_phase2$updDate)
+library(tibble)
+library(ggplot2)
+ggplot(impact_evaluation_phase2, aes(x=percExecBegin)) + geom_histogram()
+ggplot(impact_evaluation_phase2, aes(x=percExecEnd)) + geom_histogram()
+ggplot(impact_evaluation_phase2, aes(x=deltaPercExec)) + geom_histogram()
+```
+
+## Estimate the ATEs
+
+Now let's estimate the treatment effects of the second intervention. We should get the same results as what the authors report in Table 3 of their article.
+
+![](images/Brazil-table3.png)
+
+**Q7. To get started: What is the estimated average effect of the intervention on finished construction? Interpret the results. Does this provide evidence in support of the theory?**
+
+There is a negligible negative effect (-0001). We cannot reject the null of no treatment effect. This evidence does not support the theory, which predicted a positive effect.
+
+Now let's replicate that regression. The authors use a function from different statistical package from what we've been using and write a "wrapper" around this function, so that it runs the same regression model but with different outcome variables and puts everything in a nice table. We don't need all of that, so let's just set up the first equation.
+
+```{r, echo=TRUE}
+
+## if you don't have estimatr, change the function from lm_robust to lm.
+## it will not produce standard errors 
+m1 <- lm(isFinished ~ treat + logPop2015 + 
+            ideb_ai_2015 + ideb_af_2015 +
+           log_poorFam2010 + log_totTransf2016 + 
+            factor(state), # this is the fixed effect by state
+   weights = IPW_treat, # this corrects for the units having different probabilities of treatment assignment
+   clusters = municipality, # this is for standard errors that take into account that outcomes might be correlated within municipalities
+   dat = impact_evaluation_phase2)
+
+summary(m1)
+round(summary(m1)$coef,5)
+```
+
+## Checking Balance
+
+**Q8.** Adapt the code for Q7 to do a balance test by regressing the treatment variable on the covariates and fixed effects, using the same weights. Interpret your results.
+
+```{r}
+b1 <- lm(as.numeric(treat) ~ + logPop2015 + 
+            ideb_ai_2015 + ideb_af_2015 +
+           log_poorFam2010 + log_totTransf2016 + 
+            factor(state), weights = IPW_treat, 
+   clusters = municipality,
+   dat = impact_evaluation_phase2)
+round(summary(b1)$coef,3)
+```
+
+High F and low p means the covariates are predictors of treatment, not good b/c it is supposed to be random.
+
+## Other ATEs
+
+**Q9.** Adapt the code for Q7 to estimate the average treatment effect on the percentage of the project reported as completed by the end of the intervention period, (a) with no covariates or fixed effects and (b) with all the covariates and the fixed effects. What are their estimated ATEs and estimated standard errors? What are the $p$-values for each estimation? Interpret your results.
+
+For the ATE with no covariates, the ATE was slightly negative (-.44) with a p-value greater than 0.5. There seems to be no evidence for any treatment effect.
+
+For the ATE with covariates, the ATE was -2.26 with a p-value of .046. This supports the idea that the treatment had a negative effect on construction.
+
+```{r}
+
+m2 <- lm(percExecEnd ~ treat, 
+   clusters = municipality, 
+   dat = impact_evaluation_phase2)
+
+summary(m2)
+round(summary(m2)$coef,5)
+
+m2With <- lm(percExecEnd ~ treat + logPop2015 + 
+            ideb_ai_2015 + ideb_af_2015 +
+           log_poorFam2010 + log_totTransf2016 + 
+            factor(state), 
+   weights = IPW_treat, 
+   clusters = municipality, 
+   dat = impact_evaluation_phase2)
+
+summary(m2With)
+round(summary(m2With)$coef,5)
+```
+
+## Hypothesis Testing
+
+**Q10.** Adapt your regression for Q9(b) by including the lagged outcome variable (InvestBefore) as a covariate. Report your results and conduct a hypothesis test: state your null hypothesis, specify $\alpha$, extract the $p$-value for this new treatment variable from the regression output, and state your conclusion. Is this what you expected? Why or why not?
+
+```{r}
+##m2WithLO <- lm(percExecEnd ~ treat + logPop2015 + 
+          #  ideb_ai_2015 + ideb_af_2015 +
+         #  log_poorFam2010 + log_totTransf2016 + InvestBefore +
+         #   factor(state), 
+ #  weights = IPW_treat, 
+ #  clusters = municipality, 
+ #  dat = impact_evaluation_phase2)
+
+
+```
+
+I could not find the lagged outcome variable. Here is the hypothesis test I would've done.
+
+Null hypothesis: the treatment has no effect on percent of the project completed by the end of the intervention.
+
+B(treat) = 0
+
+α = 0.05
+
+I expect the lagged outcome variable to have an effect on the outcome variable, thus providing a positive test statistic with a p below α.
+
+## Discussion
+
+**Q11.** In the Discussion section, the authors go through potential explanations for their results. They argue that this is not an artefact of the research design. (We will discuss statistical power next week.) They propose two alternative explanations. Summarize these two explanations. Do they suggest that bottom-up accountability is unlikely to work in most places, or just this particular circumstance? Discuss.
+
+One alternative explanation is that at the time of the experiment, Brazil's government had massive austerity measures, which politicians would argue to be the reason behind construction delays rather than corruption. The other alternative explanation is that the experiment took place right after the election cycle, in which newly elected officials might have other priorities. The researchers suggest that bottom-up accountability may still work but in other circumstances and with other targets, which remain to be studied.

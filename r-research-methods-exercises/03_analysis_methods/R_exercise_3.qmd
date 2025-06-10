@@ -1,0 +1,157 @@
+---
+title: "Estimating Treatment Effects"
+format: html
+editor: visual
+author: "Put Your Name Here"
+date: 2/28/24
+date-format: long
+---
+
+Now we finally come to estimating the average treatment effect (ATE)! Remember that we can't know the *true* ATE due to the fundamental problem of causal inference, but that randomization allows us to obtain an unbiased estimate of the ATE. Unbiased means that over repeated experiments, the average of our estimates of the ATE is the true ATE. The question of whether the estimate is *statistically significantly different from 0* is left for hypothesis testing (coming up in a couple sessions).
+
+The basic rule is to "analyze as you randomize": if you had block or cluster randomization, don't ignore the blocks and clusters. Generally including covariates in your analysis won't hurt. If randomization worked as expected, you should get very similar estimates with and without covariates.
+
+## Estimate the ATE for T1 with and without covariates
+
+Let's analyze the Gaikwad-Nellis experiment with T1 first. This used simple randomization.
+
+Q1. Load the data and look at Table 2 (p1140). What are the three measures of political participation? Identify what variables they are in the dataset.
+
+```{r, echo=TRUE}
+## load the Gaikwad-Nellis data
+dat1 <- readRDS(file="../GN_Data/data-t1-experiment-df.Rds")
+# inspect variable names:
+```
+
+Q2. Estimate the average treatment effect (ATE) of T1 on the first outcome variable by regressing the first outcome variable on T1. The estimated coefficient on T1 is your estimate of the ATE. Compare your estimate to what's reported in Column 1 of Table 2.
+
+```{r, echo=TRUE}
+model1 <- lm(FILL_IN ~ i_t1, data=dat1) # what does this do?
+summary(model1) # what does this do?
+summary(model1)$coef # what does this do?
+summary(model1)$coef[2,] # what does this do?
+round(summary(model1)$coef[2,],3) # what does this do?
+```
+
+Another way to estimate the ATE when there are no covariates is to use the difference-in-means estimator.
+
+```{r, echo=TRUE}
+mean(na.omit(FILL_IN[dat1$i_t1==1])) # what is this?
+mean(na.omit(FILL_IN[dat1$i_t1==0])) # what is this?
+mean(na.omit(FILL_IN[dat1$i_t1==1])) - mean(na.omit(FILL_IN[dat1$i_t1==0])) # what is this?
+```
+
+You can also use the estimatr package to do difference-in-means:
+
+```{r, echo=TRUE}
+library(estimatr)
+difference_in_means(FILL_IN ~ i_t1, data = dat1[dat1$b_primary_edu==1,])
+```
+
+The estimates are very similar but not exactly the same as that in Table 2 because Gaikwad and Nellis ran a slightly different model. So let's try to run their model, which includes a lagged value of the outcome variable and several covariates. Lagged value means the same variable measured in the previous time period. We should get exactly the same results as they report. Note that we can no longer use difference-in-means with these covariates.
+
+```{r, echo=TRUE}
+## first they fix the outlier values on income.  
+# From their replication code:
+# we winsorise extreme upper values of "income": values that are greater than the value at the 99th percentile are replaced by the value at the 99th percentile
+
+# don't worry about this code for winsorising:
+library(tidyverse)
+library(scales)
+dat1 %<>%
+    mutate(b_income_000_OUTLIER_FIXED = 
+             (squish(b_income, quantile(b_income, c(0, .99)))/1000),
+           b_income_000 = b_income/1000)
+
+model1a <- lm(FILL_IN ~ i_t1 + b_has_village_voter_id + 
+                b_female + b_age + b_muslim + b_sc_st + 
+                b_primary_edu + b_income_000_OUTLIER_FIXED + 
+                b_married + b_length_residence + b_owns_home, 
+              data=dat1) # what does this do?
+## now look at the estimated ATE adapting code from the previous code block
+```
+
+Q3. Now do the same exercise for the second and third outcome variables in Table 2. Compare your estimated ATE from regressions with just the treatment variable to those obtained from regressions that include the lagged outcome and other covariates. The lagged outcome variables are b_not_voted_previously and b_vote_mc_elecs_how_likely.
+
+\[Create a code block here and adapt the code above to answer the question.\]
+
+## Estimate heterogeneous treatment effects
+
+Table 4 (page 1142) interacts T1 with several covariates. Because income is continuous, they create an indicator variable (a binary variable that takes the value 0 or 1) for above or below the median income (above = high income).
+
+```{r, echo=TRUE}
+# From their replication code: (don't worry about this part)
+# we split at the median of these vars for sake of support and easy interpretation
+  dat1 %<>% 
+    mutate(b_income_dummy = (b_income_000_OUTLIER_FIXED >= median(b_income_000_OUTLIER_FIXED))*1,
+           b_length_residence_dummy = (b_length_residence >= median(b_length_residence))*1) 
+
+# for Column 1 in Table 4:
+model_het1 <- lm(FILL_IN ~ 
+             i_t1*b_primary_edu + 
+             i_t1*b_muslim + 
+             i_t1*b_sc_st + 
+             i_t1*b_income_dummy + 
+             i_t1*b_length_residence_dummy, 
+            data = dat1)
+# adapt code from above to look at the estimated coefficients
+```
+
+We interpret the coefficient on i_t1\*b_primary_edu as the estimated difference in ATE for those with and without primary education. We interpret the coefficients on the other interaction terms similarly. Did you get the same result as reported by the authors?
+
+## Estimating the ATE in subgroups
+
+From this point, we're going to deviate from the author's analysis:
+
+Even though T1 was *not* block-randomized, we can still estimate the ATE for particular subgroups. The experiment has a large enough sample size that we should have treated and control units in subgroups and have reasonable balance.
+
+Q4. Using code from Session 1, check whether b_primary_edu predicts treatment assignment.
+
+\[Create a new code block here\]
+
+Q5. Using code from Session 1, regress treatment assignment on 3 covariates of your choice, just for the subgroup with b_primary_edu==1. Use data=dat1\[dat1\$b_primary_edu==1,\] inside the lm(). Do the same for the subgroup with b_primary_edu==0.
+
+\[Create a new code block here\]
+
+Q6. Estimate the ATE for those with b_primary_edu==0 and for those with b_primary_edu==1. What is the difference between the two estimates? How does it compare to the estimate in Table 4?
+
+```{r, echo=TRUE}
+# One way to do this is to run a regression, but with data=dat1[dat1$b_primary_edu==1,] which selects
+# just the observations with b_primary_edu==1.  Do the same for b_primary_edu==0.
+
+
+# Another way to do this is to calculate the difference in means for each subgroup using the code from earlier.  You can do it by hand or use the difference_in_means function from the estimatr package.
+```
+
+If T1 was block randomized and b_primary_edu was the blocking variable, we can estimate the overall ATE (not just for one subgroup, but everyone) using the difference_in_means function in the estimatr package:
+
+```{r, echo=TRUE}
+table(dat1$b_primary_edu, dat1$i_t1)
+difference_in_means(FILL_IN ~ i_t1, blocks = b_primary_edu, data = dat1)
+```
+
+Q7. Do the same analysis as if the experiment were blocked on a different covariate of your choice. Do you get back the same result?
+
+\[Create a new code block here.\]
+
+## Estimating the ATE of T2 (a block-cluster randomized experiment)
+
+T2 was randomized with both blocks and clusters, so estimating the ATE of T2 is more complicated. Gaikwad and Nellis use a regression with (a) weights to take into account the different sizes of the clusters and (b) fixed effects for blocks. The fixed effect is just an indicator variable for each block, which means we're estimating a different intercept (baseline average) for each block. The authors create weights that weight the clusters equally.
+
+```{r, echo=TRUE}
+## load the data
+dat2 <- readRDS(file="../GN_Data/data-t2-experiment-df.Rds")
+mod_clbl1 <- lm_robust(e_campaign_exposure ~ i_t2_treat,
+                data = dat2,
+                weights = i_t2_weight,
+                clusters = i_t2_cluster,
+                se_type = "stata", # this is a particular type of standard error for this randomizaton; ignore for now
+                fixed_effects = i_t2_block)
+summary(mod_clbl1)
+```
+
+How does this compare to the result in Table 5?
+
+Q8. Adapt the code in the previous block to include the individual covariates. Now does your estimate of the ATE match up to what the authors report?
+
+\[Create a new code block here.\]

@@ -1,0 +1,208 @@
+---
+title: "Hypothesis Testing"
+format: html
+editor: visual
+author: "Put Your Name Here"
+date: 3/20/24
+date-format: long
+---
+
+**Due: Sunday, March 24, at 10pm**
+
+Last time we estimated the average treatment effect from our experimental results.
+
+Hypothesis tests address the separate question of whether we could have obtained our experimental result just by chance. A $p$-value expresses the probability that we would obtain our results under some model of the world that *we* posit, and we say a result is *statistically significant* when that $p$-value is lower than a particular threshold $\alpha$ that *we* set. That threshold is conventionally 0.05 but it can be set to other levels.
+
+Today's goals are:
+
+-   Understand the general idea behind hypothesis testing, what is a $p$-value, and the distinction between sharp and weak null hypotheses
+
+-   Be able to compute a $p$-value and conduct a hypothesis test with the randomization inference approach
+
+-   Be able to interpret and do hypothesis testing using regression output estimating the average treatment effect
+
+You can think of a hypothesis test as a *probabilistic* proof by contradiction. A proof by contradiction begins by assuming something we would like to falsify (our null hypothesis). If we find that this assumption is inconsistent with something we know to be true (like the results of our experiment), then we can conclude that this null hypothesis is false, since both can't be true at the same time. In a hypothesis test, unlike a mathematical proof, we can only state this conclusion probabilistically (not definitely).
+
+To calculate a $p$-value and do a hypothesis test, we need:
+
+-   Our experimental design (how we did the randomization)
+
+-   Data produced by our experiment (treatment assignment and outcomes; maybe also covariates)
+
+-   Some function of the outcomes and experimental design, known as a test statistic (we often use the estimated ATE at the test statistic)
+
+-   A model of the world in which there is no treatment effect (our null hypothesis, what we want to refute)
+
+-   An alternative hypothesis (to the null hypothesis)
+
+-   A threshold $\alpha$ to which we compare our $p$-value
+
+## Null hypotheses
+
+Our null hypothesis is a claim about the world that we would like to falsify. Our null hypothesis is that there is no treatment effect. We reject this null hypothesis if it is inconsistent with the results from our experiment. We usually represent the null hypothesis as $H_0$.
+
+Distinguishing between two types of null hypotheses is important in RCTs:
+
+1.  A sharp (or strict) null hypothesis: there is no effect for any unit.
+
+2.  A weak null: the average effect is zero.
+
+## Hypothesis testing
+
+Let's start with the sharp null hypothesis. If the sharp null hypothesis is true, then:
+
+$$H_0: Y_i(1)=Y_i(0), \text{ for all } i$$ If this null hypothesis is true we can calculate the $\widehat{ATE}$ we would have gotten for every possible randomization. Remember the "hat" means estimate.
+
+When we randomize treatment and run the experiment, we learn $Y_i(1)$ from the outcome $Y$ for the treated units as usual; but if the null hypothesis is true (we also say, "under the null hypothesis"), we also learn $Y_i(0)$ for the treated units. Similarly, we learn $Y_i(0)$ from the otucome $Y$ for the control units as usual, but we also learn their $Y_i(1)$. Now that we "know" both the potential outcomes for all units, we can figure out $\widehat{ATE}$ for every possible randomization.
+
+Let's say we run an experiment with complete randomization assigning 3 out of 5 units to treatment and get this data:
+
+| $i$ | $T$ | $Y$ |
+|:---:|:---:|:---:|
+|  1  |  1  |  4  |
+|  2  |  0  |  0  |
+|  3  |  1  |  2  |
+|  4  |  1  |  3  |
+|  5  |  0  |  2  |
+
+**Q1.** Fill in the blanks in this table of potential outcomes assuming that the sharp null hypothesis is true:
+
+| $i$ | $T$ | $Y$ | $Y_i(1)$ | $Y_i(0)$ |
+|:---:|:---:|:---:|:--------:|:--------:|
+|  1  |  1  |  4  |    4     |          |
+|  2  |  0  |  0  |          |    0     |
+|  3  |  1  |  2  |    2     |          |
+|  4  |  1  |  3  |    3     |          |
+|  5  |  0  |  2  |          |    2     |
+
+**Q2.** How many ways are there to randomize treatment assignment? We have complete randomization with 3 out of 5 units assigned to treatment. Show your calculation.
+
+\[Insert code block here\]
+
+**Q3.** Under the sharp null hypothesis, what would be the $\widehat{ATE}$ produced by difference-in-means if units 1-2 were assigned to control and units 3-5 were assigned to treatment? Show your calculation.
+
+\[Insert code block here\]
+
+**Q4.** Under the sharp null hypothesis, what would be the $\widehat{ATE}$ produced by difference-in-means if units 4-5 were assigned to control and units 1-3 were assigned to treatment? Show your calculation.
+
+\[Insert code block here\]
+
+By repeating this exercise for all possible randomizations, we can get a distribution of the $\widehat{ATE}$s that we would get *just by chance* even when there is no treatment effect for any unit. The $\widehat{ATE}$ produced by difference-in-means is our *test statistic*; it is a function of our data and randomization. We can use other functions, but it's simplest for us to start with the difference-in-means.
+
+Let's do this using the ri2 package in R:
+
+```{r, echo=TRUE}
+# you may need to install this first; 
+# it will require randomizr and estimatr
+library(ri2) 
+
+declare1 <- declare_ra(N=5, m=3) 
+# get all the possible randomizations
+perms1 <- obtain_permutation_matrix(declare1) 
+perms1 # each row is a unit, each column is a possible randomization
+```
+
+**Q5.** Annotate each line by replacing "\# what is this?" with your explanation.
+
+```{r, echo=TRUE}
+# the data from our experiment
+T <- c(1,0,1,1,0)
+Y <- c(4,0,2,3,2)
+
+# for the first randomization:
+perms1[,1] # what is this?
+Y*perms1[,1] # what is this?
+Y%*%perms1[,1] # what is this?
+Y%*%perms1[,1]/3 # what is this?
+Y*(1-perms1[,1]) # what is this?
+Y%*%(1-perms1[,1]) # what is this?
+Y%*%(1-perms1[,1])/2 # what is this?
+
+ate_est_1 <- sum(Y*perms1[,1])/3 - sum(Y*(1-perms1[,1]))/2
+# alternatively, using matrix multiplication:
+# ate_est_1 <- Y%*%perms1[,1]/3 - Y%*%(1-perms1[,1])/2
+
+ate_est_1 # what is this?
+```
+
+Now let's do this for all possible randomizations to get the distribution of all possible $\widehat{ATE}$s our test statistic. This distribution is sometimes called the sampling distribution or reference distribution:
+
+```{r, echo=TRUE}
+TSs <- colSums(Y*perms1)/3 - colSums(Y*(1-perms1))/2
+TSs
+```
+
+Now we're ready to answer the question: how unlikely was it that we could have obtained our particular experimental result by chance? If the answer is highly unlikely, then we think the treatment might have had an effect on some (maybe even just one) unit. If the answer is likely, then we can't tell whether the result is due to the treatment having an effect or just chance.
+
+We quantity this likelihood using the distribution of our test statistic. We ask what proportion of all the possible $\widehat{ATE}$ are equal to or greater than the $\widehat{ATE}$ we got from our particular experiment.
+
+So first, let's calculate the $\widehat{ATE}$ we get from our experiment:
+
+```{r, echo=TRUE}
+our_ATE_estimate <- sum(Y*T)/3 - sum(Y*(1-T))/2
+our_ATE_estimate
+```
+
+What proportion of all the possible $\widehat{ATE}$ are equal to or greater than the $\widehat{ATE}$ we got from our particular experiment? This proportion is a **one-sided** $p$-value.
+
+**Q6.** Annotate each line by replacing "\# what is this?" with your explanation.
+
+```{r, echo=TRUE}
+our_ATE_estimate <= TSs # what does this mean?
+table(our_ATE_estimate <= TSs) # what does this mean?
+table(our_ATE_estimate <= TSs)[2]/length(TSs) # what does this mean?
+```
+
+## $p$-value
+
+With this result, we conclude that there is a 20% probability that we would have obtained this result when the null hypothesis (no effect for any unit) is true. This is our $p$-value. A smaller $p$-value is stronger evidence against the null hypothesis. A $p$- value is *not* the probability that the null hypothesis is true.
+
+This approach to calculating $p$-values is known as randomization inference, since we're relying on the randomization of treatment assignment to produce the reference distribution.
+
+## Decision on whether to reject the null hypothesis
+
+Hypothesis testing ends with a decision of whether to reject the null hypothesis or not. To do this, we need to specify $\alpha$, the level of the test. If the $p$-value is less than or equal to $\alpha$, we reject the null hypothesis (say it is statistically significant). Otherwise, we fail to reject the null (say it is not statistically significant).
+
+Three comments:
+
+1.  $\alpha$ (the level of the test) represents the probability of false rejection if the null hypothesis is true.
+
+2.  We don't say we accept the null, because what we have is an assessment of how consistent our data is with the null hypothesis, not necessarily about the correctness of the null hypothesis.
+
+3.  A $p$-value is a measure of *statistical* significance, not substative or scientific significance.
+
+## One-sided and two-sided tests
+
+The $p$-value we calculated above is a *one-sided* $p$-value. It considers only the values of the test statistic that are greater than or equal to the one calculated from the observed data and randomization. It works with a *one-sided alternative hypothesis* that ignores extreme responses on the other side of the distribution.
+
+We could instead specify a *two-sided alternative hypothesis* and calculate a *two-sided* $p$-value. This is the probability of obtaining a test statistic that as large in absolute value than the observed test statistic .
+
+**Q7.** Adapt the code in Q6 to calculate the two-sided $p$-value.
+
+\[Insert code block here\]
+
+## With regression
+
+The previous section describes the idea behind hypothesis testing in general and works for small samples. Most studies you will read will have large samples analyzed using regression to estimate the ATE and they are interested in testing the other type of null hypothesis: the weak null hypothesis that the *average* treatment effect is 0. Since we can't rule out either that the intervention has a negative average effect or that is has a positive average effect, the relevant alternative hypothesis is *two-sided*.
+
+Let's load the Gaikwad-Nellis data and estimate the average treatment effect of T1 on having a voter ID in the city. Report the estimate and its standard error.
+
+```{r, echo=TRUE}
+## load the Gaikwad-Nellis data
+dat1 <- readRDS(file="../GN_Data/data-t1-experiment-df.Rds")
+model1 <- lm(e_voter_id ~ i_t1, data=dat1) 
+summary(model1)
+summary(model1)$coef
+```
+
+The regression output includes estimates of the coefficients and standard errors. It also produces a $p$-value based on the t-distribution in the fourth column. The details are beyond the scope of this course, but the key idea is that the reference distribution comes from this t-distribution (or a Normal distribution) rather than being produced by the randomization of treatment.
+
+**Q9.** Look at the $p$-value for the coefficient on the treatment variable. How does it compare to $\alpha$? What do we conclude from this hypothesis test?
+
+**Q10.** (Look at your past exercises for code:) Create a new treatment variable by using complete randomization. Set the number of units to be assigned to treatment to be the same as in the actual experiment ran by Gaikwad and Nellis. Run a regression of voter id on this new treatment variable.
+
+\[Insert code block here\]
+
+**Q11.** Is the estimate what you expected it to be? Why or why not?
+
+**Q12.** Conduct a hypothesis test: state your null hypothesis, specify $\alpha$, extract the $p$-value for this new treatment variable from the regression output, and state your conclusion. Is this what you expected? Why or why not?

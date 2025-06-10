@@ -1,0 +1,202 @@
+---
+title: "Statistical Power"
+format: html
+editor: visual
+author: "Andy Waisser"
+date: 4/3/24
+date-format: long
+---
+
+Our research design should have good properties. "Good properties" can mean many things, but among them are:
+
+-   Low bias
+
+-   High statistical power
+
+**What is statistical power? The likelihood of a significance test detecting an effect when there actually is one.**
+
+To calculate statistical power, we need several ingredients.
+
+-   Variability of the outcome variable
+
+-   Effect size
+
+-   Sample size
+
+Let's look at the data from the Brazil study:
+
+```{r, echo=TRUE}
+## load the Brazil data
+load(file="../Freire_Data/tdp.RData")
+dim(impact_evaluation_phase2)
+names(impact_evaluation_phase2)
+## copied from starting on line 778:
+# outcs <- c('percExecBegin', 'percExecEnd',
+#            'deltaPercExec', 'isFinished',
+#            'isCancelled', 'updDate')
+# ctrls <- c('logPop2015', 'ideb_ai_2015','ideb_af_2015',
+#            'log_poorFam2010', 'log_totTransf2016') 
+# fes <- c('state')
+# cls <- c('municipality')
+```
+
+Imagine that we have data on the lagged version of the first outcome variable and think about design based on this information:
+
+```{r}
+summary(impact_evaluation_phase2$percExecBegin)
+sd(impact_evaluation_phase2$percExecBegin)
+```
+
+Now we can ask ourselves some questions:
+
+**Q1**. What is the smallest effect size that would be meaningful to you if you were able to detect it? Why?
+
+Taking into account the costs of the study, at least a 3% detectable impact would be meaningful to me to make sure the app is a worthwhile investment.
+
+**Q2**. What is a reasonable range of effect sizes that might happen in the real world? Provide a justification. (Hopefully there's an overlap between the answers to this question and the previous one. If not, it's not worth doing the study.). One possible source of this information is to look at the result from the first study.
+
+Looking at the results from the first intervention, which ranged from negative to minimal effect sizes, 0.1% is a reasonable minimum. However, with this being a different study, a reasonable maximum effect to me seems like 5%.
+
+**Q3**. What's your tolerance for false positives? (The probability of doing a hypothesis test and declaring there is an effect where there is none.). We often set this to be 5%, but it doesn't have to be. What is the right $\alpha$ for you?
+
+Given the fact that there are no negative consequences and very few costs for a false positive, setting $\alpha$ at 10% seems reasonable.
+
+**Q4**. What's your tolerance for false negatives? (The probability of doing a hypothesis test and declaring there is no effect when there is one.) We often set this to be 10% or 20%, but it doesn't have to be. What is the right level of power for you? Power is 100% minus that risk.
+
+I would set B to be 10% - due to the fact that the first study had a hard time discerning the existence of effects, possibly due to a need for a larger sample size or more intense treatment. To address this, I would want the power to be as large as possible - I would rather sacrifice the alpha than the B.
+
+If we were not constrained in our sample size, how to randomize, or how many units are treated, but only had the outcome and the treatment, then we would do randomization at the unit level (not clusters) and create treatment and control groups of the same size. For this scenario, there is a formula we can use to calculate power, and it has been coded up in the pwr R package.
+
+```{r}
+## Analytic approach for power for ATE
+
+install.packages("pwr")
+library(pwr)
+# help(pwr.t.test)
+# ?pwr.t.test
+
+# give it your effect size, alpha, and sample size, and it will calculate power:
+
+pwr.t.test(n=40, d=0.25, sig.level=0.05, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+# this is just using a formula
+# n	= Number of observations (per sample)
+# d	= Effect size (Cohen's d) - difference between the means 
+# divided by the pooled standard deviation
+# sig.level	= Significance level (Type I error probability)
+# power	= Power of test (1 minus Type II error probability)
+
+# give it your effect size, alpha, and power, and it will calculate the necessary sample size:
+
+pwr.t.test(power=0.8, d=0.25, sig.level=0.05, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+```
+
+**Q5**. Adapt the code above to calculate the number of units you would need for this study (the required sample size) given your answers to Q1-4. Calculate the required sample size for (a) the smallest effect that is worth learning about, (b) the midpoint of the range of possible effects you proposed, and (c) the largest effect you proposed. Make sure you discuss your result, not just show code.
+
+```{r}
+#The smallest effect worth learning about for me was 3%: 
+pwr.t.test(power=0.9, d=3/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#I would need to randomize more than 1,400 schools to the treatment or control conditions. 
+
+#The midpoint of the range of possible effects was 2.45%: 
+
+pwr.t.test(power=0.9, d=2.45/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+#I would need to randomize more than 2,150 schools to the treatment or control conditions. 
+
+#The largest effect I proposed was 5%: 
+pwr.t.test(power=0.9, d=5/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#I would need to randomize more than 1,000 schools to the treatment or control conditions. 
+```
+
+PUT CODE BLOCK HERE.
+
+**Q6**. How does the available sample size (number of units in the Brazil data set) compare with your answers to Q5? If the available sample size is smaller, calculate the power for the different effect sizes (a)-(c) with that sample size.
+
+```{r}
+dim(impact_evaluation_phase2)
+
+
+pwr.t.test(n=2188, d=3/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+#This has a power of 0.97.
+
+pwr.t.test(n=2188, d=2.45/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+#This has a power of 0.9.
+
+pwr.t.test(n=2188, d=5/sd(impact_evaluation_phase2$percExecBegin), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#This has a power of 0.99.
+```
+
+If the available sample size is too small, we can consider a couple questions: Is there a way to make the treatment stronger (have a larger effect)? Is there a way to reduce the variability in the outcome variable? After all, we have this "pre" outcome variable. If the answers to these questions is no, we have to either accept an underpowered study or decide not to do it.
+
+Let's consider using this pre-treatment variable. When you are designing a study, you will have to make a judgment call about how much of the variability in the outcome will be captured by the pre-treatment variable. By how much might it reduce the standard deviation?
+
+Just for this exercise, we're going to use the data from the Brazil study to investigate this.
+
+**Q7**. Subset the data to just the units that are assigned to the control condition. Calculate the difference between the first outcome and its lag, as if this difference will be our new outcome. Calculate the standard deviation of this new variable.
+
+```{r}
+newoutcome <- impact_evaluation_phase2$percExecEnd - impact_evaluation_phase2$percExecBegin
+newoutcome_subset <- newoutcome[impact_evaluation_phase2$treat=="Control"]
+sd(newoutcome_subset)
+```
+
+**Q8**. Now use this new variable to do the same calculations as in Q5.
+
+```{r}
+#The smallest effect worth learning about for me was 3%: 
+pwr.t.test(power=0.9, d=3/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#I would need to randomize around 221 schools to the treatment or control conditions. 
+#The midpoint of the range of possible effects was 2.45%: 
+pwr.t.test(power=0.9, d=2.45/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#I would need to randomize around 331 schools to the treatment or control conditions.
+
+#The largest effect I proposed was 5%: 
+pwr.t.test(power=0.9, d=5/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#I would need to randomize around 80 schools to the treatment or control conditions.
+```
+
+**Q9**. Now use this new variable to answer Q6.
+
+```{r}
+pwr.t.test(n=2188, d=3/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+#This has a power of 1.
+
+pwr.t.test(n=2188, d=2.45/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+
+#This has a power of 0.99.
+
+pwr.t.test(n=2188, d=5/sd(newoutcome_subset), sig.level=0.1, 
+           type=c("two.sample"),
+           alternative=c("greater"))
+#This has a power of 1.
+```
